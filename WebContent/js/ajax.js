@@ -1,55 +1,10 @@
-/*
- * creates a new XMLHttpRequest object which is the backbone of AJAX,
- * or returns false if the browser doesn't support it
- */
-function getXMLHttpRequest() {
-	var xmlHttpReq = false;
-	// to create XMLHttpRequest object in non-Microsoft browsers
-	if (window.XMLHttpRequest) {
-		xmlHttpReq = new XMLHttpRequest();
-	} else if (window.ActiveXObject) {
-		try {
-			// to create XMLHttpRequest object in later versions
-			// of Internet Explorer
-			xmlHttpReq = new ActiveXObject("Msxml2.XMLHTTP");
-		} catch (exp1) {
-			try {
-				// to create XMLHttpRequest object in older versions
-				// of Internet Explorer
-				xmlHttpReq = new ActiveXObject("Microsoft.XMLHTTP");
-			} catch (exp2) {
-				xmlHttpReq = false;
-			}
-		}
-	}
-	return xmlHttpReq;
-}
-
-/*
- * AJAX call starts with this function
- */
-function getMapDataFromServer(bounds, begin, end) {
-	var xmlHttpRequest = getXMLHttpRequest();
-	xmlHttpRequest.open("POST", "MapLoader", false);
-	xmlHttpRequest.setRequestHeader("Content-Type",
-			"application/x-www-form-urlencoded");
-
-	var parameter = bounds.getNorthEast().lat().toString() + ",";
-	parameter += bounds.getNorthEast().lng().toString() + ";";
-	parameter += bounds.getSouthWest().lat().toString() + ",";
-	parameter += bounds.getSouthWest().lng().toString() + ";";
-	parameter += toUTC(begin) + ";" + toUTC(end);
-
-	xmlHttpRequest.send(parameter);
-	return xmlHttpRequest.responseText;
-}
-
-var isRealtime = true;
+var isRealtime = false;
 var timer;
 var interval = 5000;
 var realtimeBegin;
 var begin;
 var end;
+var timestamp = "0";
 
 var heatmap;
 var map;
@@ -57,16 +12,25 @@ var loc;
 
 function init() {
 	log("init...");
-	startTimer();
+	debugger;
+
+	if (isRealtime) {
+		startTimer();
+	}
+
+	log("init done.");
 	log("");
 }
 
 function initMap() {
 	log("init map...")
+
 	map = new google.maps.Map(document.getElementById('map-canvas'), {
 		center : new google.maps.LatLng(0, 0),
 		zoom : 2,
 	});
+
+	log("init map done.")
 	log("");
 }
 
@@ -75,10 +39,22 @@ function submit() {
 	if (loc == null || loc != $("#locinput").val()) {
 		loc = $("#locinput").val();
 		log("location: " + loc);
+
 		updateCenter();
 	} else if (!isRealtime) {
 		updateOneTime();
 	}
+	log("");
+}
+
+function getSns() {
+	if (isRealtime)
+		return;
+	if (heatmap != null) 
+		heatmap.setMap(null);
+
+	log("get " + $("#sentiselect").val() + " sentiment map...");
+	updateHeatmap($("#sentiselect").val());
 	log("");
 }
 
@@ -122,7 +98,9 @@ function updateOneTime() {
 
 	if (heatmap != null)
 		heatmap.setMap(null);
-	updateHeatmap(begin, end);
+
+	var parameters = toUTC(begin) + ";" + toUTC(end);
+	updateHeatmap(parameters);
 	log("");
 }
 
@@ -136,13 +114,15 @@ function updateRealTime() {
 	log("begin time: " + begin);
 	log("end time: " + end);
 
-	updateHeatmap(begin, end);
+	var parameters = toUTC(begin) + ";" + toUTC(end);
+	updateHeatmap(parameters);
 	log("");
 }
 
-function updateHeatmap(begin, end) {
-	log("try to get data from server...");
-	var mapdata = getMapDataFromServer(map.getBounds(), begin, end);
+function updateHeatmap(parameters) {
+	debugger;
+	log(parameters);
+	var mapdata = getMapDataFromServer(parameters);
 	var places = mapdata.split(";");
 	var heatmapdata = [];
 	for (var i = 0; i < places.length; ++i) {
@@ -155,6 +135,7 @@ function updateHeatmap(begin, end) {
 	log("get " + heatmapdata.length + " locations.");
 	if (heatmapdata.length == 0)
 		return;
+	
 
 	log("update heat map.");
 	heatmap = new google.maps.visualization.HeatmapLayer({
@@ -176,14 +157,22 @@ function toDatetimeString(date) {
 }
 
 function toUTC(datetime) {
-	var reggie = /(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/;
-	var dateArray = reggie.exec(datetime);
-	var d = new Date((+dateArray[1]), (+dateArray[2]) - 1, // Careful, month
-															// starts at 0!
-	(+dateArray[3]), (+dateArray[4]), (+dateArray[5]), (+dateArray[6]));
+	var datetimeSet = datetime.split(" ");
+	var dateSet = datetimeSet[0].split("-");
+	var timeSet = datetimeSet[1].split(":");
+
+	var d = new Date(
+			Number(dateSet[0]), 	// year
+			Number(dateSet[1]) - 1, // month
+			Number(dateSet[2]),		// date
+			Number(timeSet[0]), 	// hour
+			Number(timeSet[1]),		// minute
+			Number(timeSet[2])		// second
+	);
+
 	var utc = d.getTime() + (d.getTimezoneOffset() * 60000);
 	var date = new Date(utc - 60 * 5);
-	return toDatetimeString(new Date(utc));
+	return toDatetimeString(date);
 }
 
 function startTimer() {
@@ -206,24 +195,58 @@ function switchRealtime() {
 
 	if ($("#realtime").is(":checked")) {
 		$("#endPicker").attr("disabled", "disabled");
+		$("#sentiselect").attr("disabled", "disabled");
 		startTimer();
 		isRealtime = true;
 	} else {
+		$("#sentiselect").removeAttr("disabled");
 		$("#endPicker").removeAttr("disabled");
 		stopTimer();
 		isRealtime = false;
 	}
 }
 
-$(function() {
-    $("#locinput").keypress(function (e) {
-        if ((e.which && e.which == 13) || (e.keyCode && e.keyCode == 13)) {
-            return false;
-        } else {
-            return true;
-        }
-    });
-});
+
+/*
+ * creates a new XMLHttpRequest object which is the backbone of AJAX,
+ * or returns false if the browser doesn't support it
+ */
+function getXMLHttpRequest() {
+	var xmlHttpReq = false;
+	// to create XMLHttpRequest object in non-Microsoft browsers
+	if (window.XMLHttpRequest) {
+		xmlHttpReq = new XMLHttpRequest();
+	} else if (window.ActiveXObject) {
+		try {
+			// to create XMLHttpRequest object in later versions
+			// of Internet Explorer
+			xmlHttpReq = new ActiveXObject("Msxml2.XMLHTTP");
+		} catch (exp1) {
+			try {
+				// to create XMLHttpRequest object in older versions
+				// of Internet Explorer
+				xmlHttpReq = new ActiveXObject("Microsoft.XMLHTTP");
+			} catch (exp2) {
+				xmlHttpReq = false;
+			}
+		}
+	}
+	return xmlHttpReq;
+}
+
+/*
+ * AJAX call starts with this function
+ */
+function getMapDataFromServer(parameters) {
+	var xmlHttpRequest = getXMLHttpRequest();
+	xmlHttpRequest.open("POST", "MapLoader", false);
+	xmlHttpRequest.setRequestHeader("Content-Type",
+			"application/x-www-form-urlencoded");
+
+	xmlHttpRequest.send(parameters);
+
+	return xmlHttpRequest.responseText;
+}
 
 function log(msg) {
 	txt = $("#status").val();

@@ -19,4 +19,24 @@
     <servlet-name>MapLoader</servlet-name>
     <url-pattern>/MapLoader</url-pattern>
   </servlet-mapping>
+  <servlet>
+    <description></description>
+    <display-name>MapDataLoader</display-name>
+    <servlet-name>MapDataLoader</servlet-name>
+    <servlet-class>com.cloudtour.twittmap.web.MapDataLoader</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>MapDataLoader</servlet-name>
+    <url-pattern>/MapDataLoader</url-pattern>
+  </servlet-mapping>
+  <servlet>
+    <description></description>
+    <display-name>SnsSubscriber</display-name>
+    <servlet-name>SnsSubscriber</servlet-name>
+    <servlet-class>com.cloudtour.twittmap.web.SnsSubscriber</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>SnsSubscriber</servlet-name>
+    <url-pattern>/SnsSubscriber</url-pattern>
+  </servlet-mapping>
 </web-app>

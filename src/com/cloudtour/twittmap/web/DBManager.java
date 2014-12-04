@@ -87,6 +87,7 @@ public class DBManager {
 
 	public List<List<String>> queryLatLng(String begindate, String begintime,
 			String enddate, String endtime) {
+		System.out.println(begintime);
 		List<List<String>> result = new ArrayList<List<String>>();
 		try {
 			stmt = conn.createStatement();

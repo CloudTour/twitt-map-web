@@ -8,6 +8,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import java.sql.Timestamp;
 import java.util.*;
 
 /**
@@ -49,14 +50,27 @@ public class MapLoader extends HttpServlet {
 			jb.append(line);
 
 		String[] ss = jb.toString().split(";");
-		if (ss.length != 4)
+		String responseText = "";
+		System.out.println(ss.length);
+		if (ss.length == 2)
+			responseText = getResponseFromDB(ss);
+		else if (ss.length == 1)
+			responseText = getResponseFromCache(ss);
+		else
 			return;
-		String[] begin = ss[2].split(" ");
-		String[] end = ss[3].split(" ");
+		
+		response.setContentType("text/html");
+		response.getWriter().write(responseText);
+	}
+	
+	private String getResponseFromDB(String[] ss) {
+		String[] begin = ss[0].split(" ");
+		String[] end = ss[1].split(" ");
 
 		DBManager ma = new DBManager();
 		ma.getDirver();
 		ma.connectAWS();
+		
 		List<List<String>> result = ma.queryLatLng(begin[0], begin[1], end[0],
 				end[1]);
 		ma.shutdown();
@@ -69,8 +83,24 @@ public class MapLoader extends HttpServlet {
 			sb.append(pair.get(0)).append(",");
 			sb.append(pair.get(1)).append(";");
 		}
-		response.setContentType("text/html");
-		response.getWriter().write(sb.toString());
+		
+		return sb.toString();
 	}
 
+	private String getResponseFromCache(String[] ss) {
+		List<SnsMessage> list = null;
+		if (ss[0].equals("positive"))
+			list = SnsCache.getInstance().getPositive();
+		else if (ss[0].equals("negative")) 
+			list = SnsCache.getInstance().getNegative();
+		else 
+			list = SnsCache.getInstance().getNeutral();
+		
+		StringBuilder sb = new StringBuilder();
+		for (SnsMessage msg : list) {
+			sb.append(msg.lat).append(",");
+			sb.append(msg.lng).append(";");
+		}
+		return sb.toString();
+	}
 }
